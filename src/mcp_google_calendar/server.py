@@ -541,12 +541,15 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             for day, events in sorted(summary.events_by_day.items()):
                 day_name = datetime.strptime(day, "%Y-%m-%d").strftime("%A, %b %d")
                 lines.append(f"📆 {day_name} ({len(events)} events)")
-                for event in events[:3]:
-                    start = event.start_datetime
-                    time_str = start.strftime("%I:%M %p") if start else "All day"
-                    lines.append(f"  • {time_str} - {event.summary}")
-                if len(events) > 3:
-                    lines.append(f"  ... and {len(events) - 3} more")
+                for event in events[:5]:  # Show up to 5 events per day
+                    if event.is_all_day:
+                        lines.append(f"  • 🌅 All day - {event.summary}")
+                    else:
+                        start = event.start_datetime
+                        time_str = start.strftime("%I:%M %p") if start else "TBD"
+                        lines.append(f"  • {time_str} - {event.summary}")
+                if len(events) > 5:
+                    lines.append(f"  ... and {len(events) - 5} more")
                 lines.append("")
 
             return [TextContent(type="text", text="\n".join(lines))]

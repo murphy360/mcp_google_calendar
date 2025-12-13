@@ -419,8 +419,21 @@ class CalendarClient:
             )
             all_events.extend(events)
 
-        # Sort by start time
-        all_events.sort(key=lambda e: e.start_datetime or datetime.min.replace(tzinfo=self._timezone))
+        # Sort events: all-day events first (at midnight), then by start time
+        def sort_key(e: CalendarEvent):
+            if e.is_all_day:
+                # All-day events sort at the very beginning of the day
+                return (0, start_of_day)
+            elif e.start_datetime:
+                # Make sure we have timezone-aware datetime
+                dt = e.start_datetime
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=self._timezone)
+                return (1, dt)
+            else:
+                return (2, start_of_day)
+
+        all_events.sort(key=sort_key)
 
         # Separate all-day and timed events
         all_day_events = [e for e in all_events if e.is_all_day]
@@ -467,14 +480,24 @@ class CalendarClient:
             )
             all_events.extend(events)
 
-        # Group by day
+        # Group by day - handle both all-day events (date string) and timed events
         events_by_day: dict[str, list[CalendarEvent]] = {}
         for event in all_events:
-            if event.start_datetime:
+            # For all-day events, use the date string directly
+            if event.is_all_day and event.start.date:
+                day = event.start.date
+            elif event.start_datetime:
                 day = event.start_datetime.strftime("%Y-%m-%d")
-                if day not in events_by_day:
-                    events_by_day[day] = []
-                events_by_day[day].append(event)
+            else:
+                continue  # Skip events without valid start
+            
+            if day not in events_by_day:
+                events_by_day[day] = []
+            events_by_day[day].append(event)
+        
+        # Sort events within each day (all-day first, then by time)
+        for day, day_events in events_by_day.items():
+            day_events.sort(key=lambda e: (0 if e.is_all_day else 1, e.start_datetime or datetime.min))
 
         # Find busiest day
         busiest_day = None
