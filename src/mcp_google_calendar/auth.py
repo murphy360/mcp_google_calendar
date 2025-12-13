@@ -95,13 +95,16 @@ class CalendarAuth:
             flow = InstalledAppFlow.from_client_secrets_file(
                 str(self.settings.client_secrets_file),
                 self.settings.oauth_scopes,
-                redirect_uri="http://localhost:8080",
             )
             
-            # Generate auth URL with redirect_uri included
+            # Set redirect_uri on the flow - must be set before authorization_url()
+            flow.redirect_uri = "http://localhost:8080"
+            
+            # Generate auth URL - redirect_uri must be passed explicitly here too
             auth_url, _ = flow.authorization_url(
                 prompt="consent", 
                 access_type="offline",
+                redirect_uri="http://localhost:8080",
             )
             
             print("\n" + "=" * 60)
