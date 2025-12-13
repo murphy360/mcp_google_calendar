@@ -83,10 +83,8 @@ def get_client() -> CalendarClient:
     global _client
     if _client is None:
         settings = get_settings()
-        auth = CalendarAuth(settings=settings)
-        credentials = auth.get_credentials()
         calendars_config = get_calendars_config()
-        _client = CalendarClient(credentials, calendars_config)
+        _client = CalendarClient(settings=settings, calendars_config=calendars_config)
     return _client
 
 
