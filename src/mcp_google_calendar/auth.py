@@ -43,7 +43,7 @@ class CalendarAuth:
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token",
                 "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-                "redirect_uris": ["http://localhost"],
+                "redirect_uris": ["urn:ietf:wg:oauth:2.0:oob", "http://localhost"],
             }
         }
 
@@ -90,48 +90,16 @@ class CalendarAuth:
         headless = os.environ.get("HEADLESS", "false").lower() == "true"
 
         if headless:
-            # For headless mode, use console-based flow with redirect to localhost
-            # User will need to copy the code from the redirect URL
+            # For headless mode, use out-of-band (OOB) style manual code entry
+            # We use redirect_uri that matches what's in client_secrets.json
             flow = InstalledAppFlow.from_client_secrets_file(
                 str(self.settings.client_secrets_file),
                 self.settings.oauth_scopes,
-                redirect_uri="http://localhost:8080",
             )
-
-            # Generate authorization URL
-            auth_url, _ = flow.authorization_url(
-                prompt="consent",
-                access_type="offline",
-            )
-
-            print("\n" + "=" * 60)
-            print("AUTHORIZATION REQUIRED")
-            print("=" * 60)
-            print(f"\nPlease visit this URL to authorize:\n\n{auth_url}\n")
-            print("After authorization, you'll be redirected to localhost.")
-            print("Copy the ENTIRE URL from your browser's address bar")
-            print("(it will look like: http://localhost:8080/?code=...)")
-            print("=" * 60 + "\n")
-
-            redirect_response = input("Paste the full redirect URL here: ").strip()
             
-            # Extract code from the redirect URL
-            from urllib.parse import urlparse, parse_qs
-            parsed = urlparse(redirect_response)
-            
-            # Handle both full URL and just the code
-            if parsed.query:
-                params = parse_qs(parsed.query)
-                code = params.get("code", [None])[0]
-            else:
-                # User might have just pasted the code
-                code = redirect_response
-                
-            if not code:
-                raise ValueError("Could not extract authorization code from response")
-                
-            flow.fetch_token(code=code)
-            credentials = flow.credentials
+            # Use run_console() which handles the OOB flow properly
+            # This prompts user to visit URL and paste the auth code
+            credentials = flow.run_console()
         else:
             # Normal flow with local server
             flow = InstalledAppFlow.from_client_secrets_file(
