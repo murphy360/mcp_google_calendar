@@ -499,3 +499,110 @@ class CalendarClient:
             busiest_day=busiest_day,
             categories=category_counts,
         )
+
+    async def find_free_slots(
+        self,
+        time_min: datetime,
+        time_max: datetime,
+        duration_minutes: int = 60,
+        working_hours_start: int = 9,
+        working_hours_end: int = 17,
+        calendar_ids: Optional[list[str]] = None,
+    ) -> list[dict]:
+        """Find free time slots within working hours.
+        
+        Args:
+            time_min: Start of search range
+            time_max: End of search range
+            duration_minutes: Required slot duration
+            working_hours_start: Start of working hours (0-23)
+            working_hours_end: End of working hours (1-24)
+            calendar_ids: Calendars to check (defaults to primary)
+            
+        Returns:
+            List of dicts with 'start' and 'end' datetime objects
+        """
+        calendar_ids = calendar_ids or ["primary"]
+        
+        # Get all events in the range
+        all_events = []
+        for cal_id in calendar_ids:
+            events = await self.list_events(
+                calendar_id=cal_id,
+                time_min=time_min,
+                time_max=time_max,
+                max_results=250,
+            )
+            all_events.extend(events)
+        
+        # Sort by start time
+        all_events.sort(key=lambda e: e.start_datetime or datetime.min.replace(tzinfo=self._timezone))
+        
+        # Find free slots
+        free_slots = []
+        current = time_min
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=self._timezone)
+        
+        while current < time_max:
+            # Move to working hours if needed
+            if current.hour < working_hours_start:
+                current = current.replace(hour=working_hours_start, minute=0, second=0)
+            elif current.hour >= working_hours_end:
+                # Move to next day
+                current = (current + timedelta(days=1)).replace(
+                    hour=working_hours_start, minute=0, second=0
+                )
+                continue
+            
+            # Find end of current working period
+            work_end = current.replace(hour=working_hours_end, minute=0, second=0)
+            if work_end > time_max:
+                work_end = time_max
+            
+            # Check for events blocking this slot
+            slot_start = current
+            for event in all_events:
+                event_start = event.start_datetime
+                event_end = event.end_datetime
+                
+                if event_start is None or event_end is None:
+                    continue
+                    
+                # Event timezone handling
+                if event_start.tzinfo is None:
+                    event_start = event_start.replace(tzinfo=self._timezone)
+                if event_end.tzinfo is None:
+                    event_end = event_end.replace(tzinfo=self._timezone)
+                
+                # Skip events outside current slot range
+                if event_end <= slot_start or event_start >= work_end:
+                    continue
+                
+                # Calculate free time before this event
+                if event_start > slot_start:
+                    slot_duration = (event_start - slot_start).total_seconds() / 60
+                    if slot_duration >= duration_minutes:
+                        free_slots.append({
+                            "start": slot_start,
+                            "end": event_start,
+                        })
+                
+                # Move past this event
+                slot_start = max(slot_start, event_end)
+            
+            # Check remaining time in work period
+            if slot_start < work_end:
+                remaining = (work_end - slot_start).total_seconds() / 60
+                if remaining >= duration_minutes:
+                    free_slots.append({
+                        "start": slot_start,
+                        "end": work_end,
+                    })
+            
+            # Move to next day
+            current = (current + timedelta(days=1)).replace(
+                hour=working_hours_start, minute=0, second=0
+            )
+        
+        return free_slots

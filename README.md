@@ -36,7 +36,7 @@ cp .env.example .env
 
 ```bash
 # Run OAuth setup (opens browser for consent)
-docker compose --profile setup run --rm calendar-mcp-auth
+docker compose --profile setup run --rm calendar-auth
 ```
 
 ### 4. Start the Server

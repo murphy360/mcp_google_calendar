@@ -54,7 +54,7 @@ class EventResponse(BaseModel):
     end: str
     location: Optional[str] = None
     description: Optional[str] = None
-    calendar_id: str
+    calendar_id: Optional[str] = None
     html_link: Optional[str] = None
     status: str = "confirmed"
     all_day: bool = False
@@ -98,7 +98,7 @@ async def health_check():
     """Check service health."""
     try:
         client = get_client()
-        calendars = client.list_calendars()
+        calendars = await client.list_calendars()
         calendars_config = get_calendars_config()
         return HealthResponse(
             status="healthy",
@@ -119,7 +119,7 @@ async def list_calendars():
     """List all accessible calendars."""
     try:
         client = get_client()
-        calendars = client.list_calendars()
+        calendars = await client.list_calendars()
         return [
             CalendarResponse(
                 id=cal.id,
@@ -143,8 +143,9 @@ async def get_today_events(
     try:
         client = get_client()
         today = date.today()
-        events = client.get_events(
-            calendar_id=calendar_id,
+        cal_id = calendar_id or "primary"
+        events = await client.list_events(
+            calendar_id=cal_id,
             time_min=datetime.combine(today, datetime.min.time()),
             time_max=datetime.combine(today, datetime.max.time()),
         )
@@ -152,11 +153,11 @@ async def get_today_events(
             EventResponse(
                 id=event.id,
                 summary=event.summary,
-                start=event.start.datetime.isoformat()
-                if event.start.datetime
+                start=event.start.date_time.isoformat()
+                if event.start.date_time
                 else event.start.date or "",
-                end=event.end.datetime.isoformat()
-                if event.end.datetime
+                end=event.end.date_time.isoformat()
+                if event.end.date_time
                 else event.end.date or "",
                 location=event.location,
                 description=event.description,
@@ -183,8 +184,9 @@ async def get_upcoming_events(
         client = get_client()
         now = datetime.now()
         end = now + timedelta(days=days)
-        events = client.get_events(
-            calendar_id=calendar_id,
+        cal_id = calendar_id or "primary"
+        events = await client.list_events(
+            calendar_id=cal_id,
             time_min=now,
             time_max=end,
             max_results=max_results,
@@ -193,11 +195,11 @@ async def get_upcoming_events(
             EventResponse(
                 id=event.id,
                 summary=event.summary,
-                start=event.start.datetime.isoformat()
-                if event.start.datetime
+                start=event.start.date_time.isoformat()
+                if event.start.date_time
                 else event.start.date or "",
-                end=event.end.datetime.isoformat()
-                if event.end.datetime
+                end=event.end.date_time.isoformat()
+                if event.end.date_time
                 else event.end.date or "",
                 location=event.location,
                 description=event.description,
@@ -225,22 +227,23 @@ async def search_events(
         client = get_client()
         now = datetime.now()
         end = now + timedelta(days=days)
-        events = client.get_events(
-            calendar_id=calendar_id,
+        cal_id = calendar_id or "primary"
+        events = await client.search_events(
+            query=q,
+            calendar_id=cal_id,
             time_min=now,
             time_max=end,
-            q=q,
             max_results=max_results,
         )
         return [
             EventResponse(
                 id=event.id,
                 summary=event.summary,
-                start=event.start.datetime.isoformat()
-                if event.start.datetime
+                start=event.start.date_time.isoformat()
+                if event.start.date_time
                 else event.start.date or "",
-                end=event.end.datetime.isoformat()
-                if event.end.datetime
+                end=event.end.date_time.isoformat()
+                if event.end.date_time
                 else event.end.date or "",
                 location=event.location,
                 description=event.description,
@@ -264,45 +267,45 @@ async def get_daily_summary(
     try:
         client = get_client()
         if target_date:
-            summary_date = date.fromisoformat(target_date)
+            summary_date = datetime.fromisoformat(target_date)
         else:
-            summary_date = date.today()
+            summary_date = datetime.now()
 
-        summary = client.get_daily_summary(summary_date)
+        agenda = await client.get_daily_agenda(summary_date)
         return DailySummaryResponse(
-            date=summary.date.isoformat(),
-            total_events=summary.total_events,
+            date=agenda.date,
+            total_events=agenda.event_count,
             events=[
                 {
                     "id": e.id,
                     "summary": e.summary,
-                    "start": e.start.datetime.isoformat()
-                    if e.start.datetime
+                    "start": e.start.date_time.isoformat()
+                    if e.start.date_time
                     else e.start.date,
-                    "end": e.end.datetime.isoformat() if e.end.datetime else e.end.date,
+                    "end": e.end.date_time.isoformat() if e.end.date_time else e.end.date,
                     "location": e.location,
                     "calendar_id": e.calendar_id,
                     "all_day": e.start.date is not None,
                 }
-                for e in summary.events
+                for e in agenda.events
             ],
             categories={
                 cat: [
                     {
                         "id": e.id,
                         "summary": e.summary,
-                        "start": e.start.datetime.isoformat()
-                        if e.start.datetime
+                        "start": e.start.date_time.isoformat()
+                        if e.start.date_time
                         else e.start.date,
-                        "end": e.end.datetime.isoformat()
-                        if e.end.datetime
+                        "end": e.end.date_time.isoformat()
+                        if e.end.date_time
                         else e.end.date,
                         "location": e.location,
                         "calendar_id": e.calendar_id,
                     }
-                    for e in events
+                    for e in cat_events
                 ]
-                for cat, events in summary.by_category.items()
+                for cat, cat_events in agenda.categories.items()
             },
         )
     except Exception as e:
@@ -318,38 +321,38 @@ async def get_weekly_summary(
     try:
         client = get_client()
         if start_date:
-            summary_start = date.fromisoformat(start_date)
+            summary_start = datetime.fromisoformat(start_date)
         else:
             # Start from Monday of current week
-            today = date.today()
+            today = datetime.now()
             summary_start = today - timedelta(days=today.weekday())
 
-        summary = client.get_week_summary(summary_start)
+        summary = await client.get_weekly_summary(summary_start)
         return WeekSummaryResponse(
-            start_date=summary.start_date.isoformat(),
-            end_date=summary.end_date.isoformat(),
+            start_date=summary.week_start,
+            end_date=summary.week_end,
             total_events=summary.total_events,
             days=[
                 {
-                    "date": day.date.isoformat(),
-                    "total_events": day.total_events,
+                    "date": day_date,
+                    "total_events": len(day_events),
                     "events": [
                         {
                             "id": e.id,
                             "summary": e.summary,
-                            "start": e.start.datetime.isoformat()
-                            if e.start.datetime
+                            "start": e.start.date_time.isoformat()
+                            if e.start.date_time
                             else e.start.date,
-                            "end": e.end.datetime.isoformat()
-                            if e.end.datetime
+                            "end": e.end.date_time.isoformat()
+                            if e.end.date_time
                             else e.end.date,
                             "location": e.location,
                             "calendar_id": e.calendar_id,
                         }
-                        for e in day.events
+                        for e in day_events
                     ],
                 }
-                for day in summary.days
+                for day_date, day_events in summary.events_by_day.items()
             ],
         )
     except Exception as e:
@@ -369,11 +372,12 @@ async def find_free_time(
         client = get_client()
         now = datetime.now()
         end = now + timedelta(days=days)
-        slots = client.find_free_time(
-            start=now,
-            end=end,
+        slots = await client.find_free_slots(
+            time_min=now,
+            time_max=end,
             duration_minutes=duration_minutes,
-            working_hours=(start_hour, end_hour),
+            working_hours_start=start_hour,
+            working_hours_end=end_hour,
         )
         return [
             {

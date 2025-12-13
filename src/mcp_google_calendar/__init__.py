@@ -9,13 +9,12 @@ from .auth import CalendarAuth
 from .calendar_client import CalendarClient
 from .config import CalendarsConfig, Settings, get_calendars_config, get_settings
 from .models import (
-    Attendee,
+    CalendarEvent,
     CalendarInfo,
-    DailySummary,
-    Event,
+    DailyAgenda,
+    EventAttendee,
     EventDateTime,
-    EventsResponse,
-    WeekSummary,
+    WeeklySummary,
 )
 
 __all__ = [
@@ -25,11 +24,10 @@ __all__ = [
     "Settings",
     "get_calendars_config",
     "get_settings",
-    "Attendee",
+    "CalendarEvent",
     "CalendarInfo",
-    "DailySummary",
-    "Event",
+    "DailyAgenda",
+    "EventAttendee",
     "EventDateTime",
-    "EventsResponse",
-    "WeekSummary",
+    "WeeklySummary",
 ]
