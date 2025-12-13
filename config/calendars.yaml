@@ -1,0 +1,66 @@
+# Calendar Categories Configuration
+# Define how calendars are organized and displayed
+
+calendars:
+  work:
+    name: "Work"
+    description: "Work-related calendars"
+    calendar_ids:
+      - "work@group.calendar.google.com"
+    color: "#4285F4"
+    priority: 1
+
+  personal:
+    name: "Personal"
+    description: "Personal appointments and events"
+    calendar_ids:
+      - "primary"
+    color: "#34A853"
+    priority: 2
+
+  family:
+    name: "Family"
+    description: "Family events and activities"
+    calendar_ids:
+      - "family@group.calendar.google.com"
+    keywords:
+      - "family"
+      - "kids"
+      - "school"
+    color: "#FBBC04"
+    priority: 3
+
+  health:
+    name: "Health & Fitness"
+    description: "Medical appointments, workouts"
+    keywords:
+      - "doctor"
+      - "dentist"
+      - "gym"
+      - "workout"
+      - "medical"
+      - "appointment"
+    color: "#EA4335"
+    priority: 4
+
+  social:
+    name: "Social"
+    description: "Social events and gatherings"
+    keywords:
+      - "dinner"
+      - "lunch"
+      - "party"
+      - "birthday"
+      - "meetup"
+    color: "#9334E6"
+    priority: 5
+
+# Default settings
+defaults:
+  time_zone: "America/New_York"
+  default_duration_minutes: 60
+  reminder_minutes: [10, 30]
+  working_hours:
+    start: "09:00"
+    end: "17:00"
+  working_days: [1, 2, 3, 4, 5]  # Monday to Friday

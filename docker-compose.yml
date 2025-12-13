@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # Main calendar server - runs the combined REST API + MCP SSE server
+  calendar:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mcp-google-calendar
+    restart: unless-stopped
+    ports:
+      - "${MCP_SERVER_PORT:-8002}:8002"
+    volumes:
+      - ./credentials:/app/credentials:ro
+      - ./config:/app/config:ro
+    environment:
+      - MCP_SERVER_HOST=0.0.0.0
+      - MCP_SERVER_PORT=8002
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - CREDENTIALS_PATH=/app/credentials/client_secrets.json
+      - TOKEN_PATH=/app/credentials/token.json
+      - CALENDARS_CONFIG_PATH=/app/config/calendars.yaml
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - mcp-network
+
+  # Auth setup service - run once to authenticate with Google
+  # Usage: docker-compose --profile setup run --rm calendar-auth
+  calendar-auth:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mcp-google-calendar-auth
+    profiles:
+      - setup
+    volumes:
+      - ./credentials:/app/credentials
+      - ./config:/app/config:ro
+    environment:
+      - CREDENTIALS_PATH=/app/credentials/client_secrets.json
+      - TOKEN_PATH=/app/credentials/token.json
+      - CALENDARS_CONFIG_PATH=/app/config/calendars.yaml
+    # Run auth in interactive mode
+    command: python -c "from mcp_google_calendar.auth import CalendarAuth; auth = CalendarAuth(); auth.authenticate(); print('Authentication successful!')"
+    stdin_open: true
+    tty: true
+    networks:
+      - mcp-network
+
+networks:
+  mcp-network:
+    driver: bridge
