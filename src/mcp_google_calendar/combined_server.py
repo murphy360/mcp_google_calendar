@@ -32,12 +32,13 @@ from .api import (
 from .auth import CalendarAuth
 from .calendar_client import CalendarClient
 from .config import get_calendars_config, get_settings
-from .server import server as mcp_server
+from .server import create_mcp_server
 
 logger = logging.getLogger(__name__)
 
-# Create SSE transport for MCP
-sse = SseServerTransport("/mcp/messages/")
+# Create SSE transports for MCP - separate instances for each endpoint path
+sse_mcp = SseServerTransport("/mcp/messages/")
+sse_root = SseServerTransport("/messages/")
 
 # Global client for health check
 _client: Optional[CalendarClient] = None
@@ -122,28 +123,68 @@ app.get("/free-time")(find_free_time)
 # === MCP SSE Endpoints ===
 
 
-async def handle_sse(request: Request) -> Response:
-    """Handle SSE connections from MCP clients."""
-    logger.info(f"New MCP SSE connection from {request.client}")
+async def handle_sse_mcp(request: Request) -> Response:
+    """Handle SSE connections at /mcp/sse endpoint."""
+    logger.info(f"New MCP SSE connection at /mcp/sse from {request.client}")
+    
+    # Create a fresh MCP server instance for this connection
+    mcp_server = create_mcp_server()
+    
+    try:
+        async with sse_mcp.connect_sse(
+            request.scope, 
+            request.receive, 
+            request._send
+        ) as streams:
+            await mcp_server.run(
+                streams[0],
+                streams[1],
+                mcp_server.create_initialization_options(),
+            )
+    except Exception as e:
+        logger.error(f"MCP SSE connection error at /mcp/sse: {e}")
+    finally:
+        logger.info(f"MCP SSE connection closed at /mcp/sse from {request.client}")
+    
+    return Response()
 
-    async with sse.connect_sse(request.scope, request.receive, request._send) as streams:
-        await mcp_server.run(
-            streams[0],
-            streams[1],
-            mcp_server.create_initialization_options(),
-        )
 
+async def handle_sse_root(request: Request) -> Response:
+    """Handle SSE connections at /sse endpoint (HA compatibility alias)."""
+    logger.info(f"New MCP SSE connection at /sse from {request.client}")
+    
+    # Create a fresh MCP server instance for this connection
+    mcp_server = create_mcp_server()
+    
+    try:
+        async with sse_root.connect_sse(
+            request.scope, 
+            request.receive, 
+            request._send
+        ) as streams:
+            await mcp_server.run(
+                streams[0],
+                streams[1],
+                mcp_server.create_initialization_options(),
+            )
+    except Exception as e:
+        logger.error(f"MCP SSE connection error at /sse: {e}")
+    finally:
+        logger.info(f"MCP SSE connection closed at /sse from {request.client}")
+    
     return Response()
 
 
 async def handle_mcp_messages(request: Request) -> Response:
     """Handle MCP message posts."""
-    return await sse.handle_post_message(request.scope, request.receive, request._send)
+    return await sse_mcp.handle_post_message(request.scope, request.receive, request._send)
 
 
 # Add MCP routes
-app.add_route("/mcp/sse", handle_sse, methods=["GET"])
-app.mount("/mcp/messages/", app=sse.handle_post_message)
+app.add_route("/mcp/sse", handle_sse_mcp, methods=["GET"])
+app.add_route("/sse", handle_sse_root, methods=["GET"])
+app.mount("/mcp/messages/", app=sse_mcp.handle_post_message)
+app.mount("/messages/", app=sse_root.handle_post_message)
 
 
 # === Info endpoint ===
