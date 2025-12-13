@@ -90,16 +90,25 @@ class CalendarAuth:
         headless = os.environ.get("HEADLESS", "false").lower() == "true"
 
         if headless:
-            # For headless mode, use out-of-band (OOB) style manual code entry
-            # We use redirect_uri that matches what's in client_secrets.json
+            # For headless mode, use out-of-band (OOB) flow
             flow = InstalledAppFlow.from_client_secrets_file(
                 str(self.settings.client_secrets_file),
                 self.settings.oauth_scopes,
             )
             
-            # Use run_console() which handles the OOB flow properly
-            # This prompts user to visit URL and paste the auth code
-            credentials = flow.run_console()
+            # Set redirect_uri to OOB for manual code entry
+            flow.redirect_uri = "urn:ietf:wg:oauth:2.0:oob"
+            auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")
+            
+            print("\n" + "=" * 60)
+            print("Open this URL in your browser to authenticate:")
+            print("=" * 60)
+            print(f"\n{auth_url}\n")
+            print("=" * 60)
+            
+            code = input("Enter the authorization code: ").strip()
+            flow.fetch_token(code=code)
+            credentials = flow.credentials
         else:
             # Normal flow with local server
             flow = InstalledAppFlow.from_client_secrets_file(
