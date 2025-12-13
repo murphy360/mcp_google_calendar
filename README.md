@@ -53,37 +53,56 @@ Add to your `claude_desktop_config.json`:
 {
   "mcpServers": {
     "calendar": {
-      "command": "C:\\Program Files\\nodejs\\npx.cmd",
-      "args": ["-y", "mcp-remote", "http://YOUR_SERVER_IP:8003/mcp/sse", "--allow-http"]
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "http://YOUR_SERVER_IP:8002/mcp/sse", "--allow-http"]
     }
   }
 }
 ```
 
+### Home Assistant MCP Integration
+
+The server exposes SSE endpoints for MCP connections:
+- `/mcp/sse` - Primary MCP SSE endpoint
+- `/sse` - Alias endpoint for Home Assistant compatibility
+
+Each connection gets a fresh server instance for proper session isolation.
+
 ## MCP Tools
 
 | Tool | Description |
 |------|-------------|
+| `calendar_get_current_time` | Get current date/time with reference dates for queries |
 | `calendar_list_events` | List upcoming events with optional filters |
 | `calendar_search` | Search events by text query |
 | `calendar_get_event` | Get details of a specific event |
 | `calendar_create_event` | Create a new calendar event |
 | `calendar_update_event` | Update an existing event |
 | `calendar_delete_event` | Delete an event |
-| `calendar_daily_agenda` | Get today's agenda summary |
-| `calendar_weekly_summary` | Get week overview |
+| `calendar_daily_agenda` | Get agenda for a specific day |
+| `calendar_weekly_summary` | Get 7-day overview |
 | `calendar_list_calendars` | List all available calendars |
 | `calendar_free_busy` | Check availability for a time range |
+
+### Tool Schema Notes
+
+All tools use Gemini-compatible schemas with explicit types:
+- Array parameters use comma-separated strings (e.g., `attendees: "user1@example.com,user2@example.com"`)
+- Calendar IDs use comma-separated strings (e.g., `calendar_ids: "primary,work@group.calendar.google.com"`)
+- Dates use ISO 8601 format (`YYYY-MM-DD` or `YYYY-MM-DDTHH:MM:SS`)
 
 ## REST API Endpoints
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /health` | Health check |
-| `GET /api/events/today` | Today's events |
-| `GET /api/events/upcoming` | Upcoming events |
-| `GET /api/agenda/daily` | Daily agenda text |
-| `GET /api/calendars` | List calendars |
+| `GET /health` | Health check with auth status |
+| `GET /calendars` | List all calendars |
+| `GET /events/today` | Today's events |
+| `GET /events/upcoming` | Upcoming events |
+| `GET /events/search?q=query` | Search events |
+| `GET /summary/daily` | Daily summary |
+| `GET /summary/weekly` | Weekly summary |
+| `GET /free-time` | Find free time slots |
 
 ## Home Assistant Integration
 
@@ -93,16 +112,22 @@ Add to your `claude_desktop_config.json`:
 sensor:
   - platform: rest
     name: "Next Calendar Event"
-    resource: http://YOUR_SERVER_IP:8003/api/events/upcoming?max_results=1
-    value_template: "{{ value_json.events[0].summary if value_json.events else 'No events' }}"
+    resource: http://YOUR_SERVER_IP:8002/events/upcoming?days=1
+    value_template: "{{ value_json[0].summary if value_json else 'No events' }}"
     scan_interval: 300
 
   - platform: rest
     name: "Today's Events Count"
-    resource: http://YOUR_SERVER_IP:8003/api/events/today
-    value_template: "{{ value_json.count }}"
+    resource: http://YOUR_SERVER_IP:8002/events/today
+    value_template: "{{ value_json | length }}"
     scan_interval: 300
 ```
+
+### MCP Integration
+
+Home Assistant can connect via the MCP SSE endpoints:
+- `http://YOUR_SERVER_IP:8002/mcp/sse`
+- `http://YOUR_SERVER_IP:8002/sse` (alias)
 
 ## Project Structure
 
