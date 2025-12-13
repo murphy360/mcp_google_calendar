@@ -90,23 +90,46 @@ class CalendarAuth:
         headless = os.environ.get("HEADLESS", "false").lower() == "true"
 
         if headless:
-            # For headless mode, use out-of-band flow
+            # For headless mode, use console-based flow with redirect to localhost
+            # User will need to copy the code from the redirect URL
             flow = InstalledAppFlow.from_client_secrets_file(
                 str(self.settings.client_secrets_file),
                 self.settings.oauth_scopes,
+                redirect_uri="http://localhost:8080",
             )
 
             # Generate authorization URL
-            auth_url, _ = flow.authorization_url(prompt="consent")
+            auth_url, _ = flow.authorization_url(
+                prompt="consent",
+                access_type="offline",
+            )
 
             print("\n" + "=" * 60)
             print("AUTHORIZATION REQUIRED")
             print("=" * 60)
             print(f"\nPlease visit this URL to authorize:\n\n{auth_url}\n")
-            print("After authorization, enter the authorization code below.")
+            print("After authorization, you'll be redirected to localhost.")
+            print("Copy the ENTIRE URL from your browser's address bar")
+            print("(it will look like: http://localhost:8080/?code=...)")
             print("=" * 60 + "\n")
 
-            code = input("Enter authorization code: ").strip()
+            redirect_response = input("Paste the full redirect URL here: ").strip()
+            
+            # Extract code from the redirect URL
+            from urllib.parse import urlparse, parse_qs
+            parsed = urlparse(redirect_response)
+            
+            # Handle both full URL and just the code
+            if parsed.query:
+                params = parse_qs(parsed.query)
+                code = params.get("code", [None])[0]
+            else:
+                # User might have just pasted the code
+                code = redirect_response
+                
+            if not code:
+                raise ValueError("Could not extract authorization code from response")
+                
             flow.fetch_token(code=code)
             credentials = flow.credentials
         else:
