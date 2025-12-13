@@ -257,6 +257,7 @@ async def search_events(
 @app.get("/summary/daily", response_model=DailySummaryResponse)
 async def get_daily_summary(
     target_date: Optional[str] = Query(None, description="Date in YYYY-MM-DD format"),
+    calendar_ids: Optional[str] = Query(None, description="Comma-separated list of calendar IDs (default: all calendars)"),
 ):
     """Get daily calendar summary."""
     try:
@@ -266,7 +267,16 @@ async def get_daily_summary(
         else:
             summary_date = datetime.now()
 
-        agenda = await client.get_daily_agenda(summary_date)
+        # Parse calendar_ids - default to all calendars
+        cal_ids = None
+        if calendar_ids:
+            cal_ids = [cid.strip() for cid in calendar_ids.split(",")]
+        else:
+            # Get all available calendars
+            all_calendars = await client.list_calendars()
+            cal_ids = [cal.id for cal in all_calendars]
+
+        agenda = await client.get_daily_agenda(summary_date, calendar_ids=cal_ids)
         return DailySummaryResponse(
             date=agenda.date,
             total_events=agenda.event_count,
@@ -311,6 +321,7 @@ async def get_daily_summary(
 @app.get("/summary/weekly", response_model=WeekSummaryResponse)
 async def get_weekly_summary(
     start_date: Optional[str] = Query(None, description="Start date in YYYY-MM-DD format"),
+    calendar_ids: Optional[str] = Query(None, description="Comma-separated list of calendar IDs (default: all calendars)"),
 ):
     """Get weekly calendar summary."""
     try:
@@ -322,7 +333,16 @@ async def get_weekly_summary(
             today = datetime.now()
             summary_start = today - timedelta(days=today.weekday())
 
-        summary = await client.get_weekly_summary(summary_start)
+        # Parse calendar_ids - default to all calendars
+        cal_ids = None
+        if calendar_ids:
+            cal_ids = [cid.strip() for cid in calendar_ids.split(",")]
+        else:
+            # Get all available calendars
+            all_calendars = await client.list_calendars()
+            cal_ids = [cal.id for cal in all_calendars]
+
+        summary = await client.get_weekly_summary(summary_start, calendar_ids=cal_ids)
         return WeekSummaryResponse(
             start_date=summary.week_start,
             end_date=summary.week_end,

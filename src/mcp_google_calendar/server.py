@@ -227,7 +227,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="calendar_daily_agenda",
-            description="Get today's agenda with all events",
+            description="Get today's agenda with all events from one or more calendars",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -235,18 +235,28 @@ async def list_tools() -> list[Tool]:
                         "type": "string",
                         "description": "Date in YYYY-MM-DD format (default: today)",
                     },
+                    "calendar_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of calendar IDs to include (default: all calendars). Use 'primary' for main calendar or specific calendar IDs.",
+                    },
                 },
             },
         ),
         Tool(
             name="calendar_weekly_summary",
-            description="Get a summary of the week's events",
+            description="Get a summary of the week's events from one or more calendars",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "start_date": {
                         "type": "string",
                         "description": "Week start date in YYYY-MM-DD format (default: current week)",
+                    },
+                    "calendar_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of calendar IDs to include (default: all calendars). Use 'primary' for main calendar or specific calendar IDs.",
                     },
                 },
             },
@@ -475,7 +485,14 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             if arguments.get("date"):
                 date = datetime.strptime(arguments["date"], "%Y-%m-%d").replace(tzinfo=tz)
 
-            agenda = await client.get_daily_agenda(date)
+            # Get calendar_ids - default to all calendars if not specified
+            calendar_ids = arguments.get("calendar_ids")
+            if not calendar_ids:
+                # Get all available calendars
+                all_calendars = await client.list_calendars()
+                calendar_ids = [cal.id for cal in all_calendars]
+
+            agenda = await client.get_daily_agenda(date, calendar_ids=calendar_ids)
 
             if not agenda.has_events:
                 return [TextContent(type="text", text=f"📅 No events scheduled for {agenda.date}")]
@@ -506,7 +523,14 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             if arguments.get("start_date"):
                 start_date = datetime.strptime(arguments["start_date"], "%Y-%m-%d").replace(tzinfo=tz)
 
-            summary = await client.get_weekly_summary(start_date)
+            # Get calendar_ids - default to all calendars if not specified
+            calendar_ids = arguments.get("calendar_ids")
+            if not calendar_ids:
+                # Get all available calendars
+                all_calendars = await client.list_calendars()
+                calendar_ids = [cal.id for cal in all_calendars]
+
+            summary = await client.get_weekly_summary(start_date, calendar_ids=calendar_ids)
 
             lines = [f"📅 Weekly Summary ({summary.week_start} to {summary.week_end})\n"]
             lines.append(f"Total events: {summary.total_events}")
