@@ -43,8 +43,11 @@ services:
       - CREDENTIALS_PATH=/app/credentials/client_secrets.json
       - TOKEN_PATH=/app/credentials/token.json
       - CALENDARS_CONFIG_PATH=/app/config/calendars.yaml
+      - HEADLESS=true
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
     # Run auth in interactive mode
-    command: python -c "from mcp_google_calendar.auth import CalendarAuth; auth = CalendarAuth(); auth.authenticate(); print('Authentication successful!')"
+    command: python -m mcp_google_calendar.auth
     stdin_open: true
     tty: true
     networks:
