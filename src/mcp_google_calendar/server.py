@@ -65,6 +65,14 @@ async def list_tools() -> list[Tool]:
     """List available Calendar tools."""
     return [
         Tool(
+            name="calendar_get_current_time",
+            description="Get the current date and time in the user's timezone. Use this to understand what 'today', 'tomorrow', 'this week' etc. means before making calendar queries.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+            },
+        ),
+        Tool(
             name="calendar_list_events",
             description="List upcoming calendar events. Can filter by date range and calendar.",
             inputSchema={
@@ -322,7 +330,26 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     tz = ZoneInfo(settings.timezone)
 
     try:
-        if name == "calendar_list_events":
+        if name == "calendar_get_current_time":
+            now = datetime.now(tz)
+            
+            lines = [
+                "🕐 Current Date & Time Information:\n",
+                f"Timezone: {settings.timezone}",
+                f"Current Date: {now.strftime('%A, %B %d, %Y')}",
+                f"Current Time: {now.strftime('%I:%M %p')}",
+                f"ISO Format: {now.isoformat()}",
+                "",
+                "📅 Reference Dates:",
+                f"Today: {now.strftime('%Y-%m-%d')}",
+                f"Tomorrow: {(now + timedelta(days=1)).strftime('%Y-%m-%d')}",
+                f"This week ends: {(now + timedelta(days=(6 - now.weekday()))).strftime('%Y-%m-%d')}",
+                f"Next week starts: {(now + timedelta(days=(7 - now.weekday()))).strftime('%Y-%m-%d')}",
+            ]
+            
+            return [TextContent(type="text", text="\n".join(lines))]
+
+        elif name == "calendar_list_events":
             days_ahead = arguments.get("days_ahead", 7)
             calendar_id = arguments.get("calendar_id", "primary")
             max_results = arguments.get("max_results", 20)
