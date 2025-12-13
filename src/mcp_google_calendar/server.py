@@ -26,6 +26,25 @@ server = Server("google-calendar-mcp")
 _calendar_client: CalendarClient | None = None
 
 
+def format_event_time(dt: datetime | None, tz: ZoneInfo) -> str:
+    """Format a datetime for display in the specified timezone."""
+    if dt is None:
+        return "Unknown time"
+    # Convert to local timezone if it has timezone info
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(tz)
+    return dt.strftime("%a %b %d, %I:%M %p")
+
+
+def format_time_only(dt: datetime | None, tz: ZoneInfo) -> str:
+    """Format just the time portion in the specified timezone."""
+    if dt is None:
+        return "TBD"
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(tz)
+    return dt.strftime("%I:%M %p")
+
+
 def get_calendar_client() -> CalendarClient:
     """Get or create Calendar client instance."""
     global _calendar_client
@@ -323,13 +342,10 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 
             lines = [f"📅 Upcoming Events ({len(events)} events):\n"]
             for event in events:
-                start = event.start_datetime
                 if event.is_all_day:
                     time_str = "All day"
-                elif start:
-                    time_str = start.strftime("%a %b %d, %I:%M %p")
                 else:
-                    time_str = "Unknown time"
+                    time_str = format_event_time(event.start_datetime, tz)
 
                 lines.append(f"• {event.summary}")
                 lines.append(f"  📆 {time_str}")
@@ -363,8 +379,10 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 
             lines = [f"🔍 Search Results for '{query}' ({len(events)} events):\n"]
             for event in events:
-                start = event.start_datetime
-                time_str = start.strftime("%a %b %d, %I:%M %p") if start else "Unknown"
+                if event.is_all_day:
+                    time_str = "All day"
+                else:
+                    time_str = format_event_time(event.start_datetime, tz)
                 lines.append(f"• {event.summary}")
                 lines.append(f"  📆 {time_str}")
                 lines.append(f"  ID: {event.id}")
@@ -388,8 +406,11 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             if event.is_all_day:
                 lines.append(f"Time: All day ({event.start.date})")
             elif start and end:
-                lines.append(f"Start: {start.strftime('%a %b %d, %Y %I:%M %p')}")
-                lines.append(f"End: {end.strftime('%a %b %d, %Y %I:%M %p')}")
+                # Convert to local timezone for display
+                start_local = start.astimezone(tz) if start.tzinfo else start
+                end_local = end.astimezone(tz) if end.tzinfo else end
+                lines.append(f"Start: {start_local.strftime('%a %b %d, %Y %I:%M %p')}")
+                lines.append(f"End: {end_local.strftime('%a %b %d, %Y %I:%M %p')}")
                 if event.duration_minutes:
                     lines.append(f"Duration: {event.duration_minutes} minutes")
 
@@ -509,8 +530,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             if agenda.timed_events:
                 lines.append("⏰ Scheduled Events:")
                 for event in agenda.timed_events:
-                    start = event.start_datetime
-                    time_str = start.strftime("%I:%M %p") if start else ""
+                    time_str = format_time_only(event.start_datetime, tz)
                     lines.append(f"  • {time_str} - {event.summary}")
                     if event.location:
                         lines.append(f"    📍 {event.location}")
@@ -545,8 +565,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
                     if event.is_all_day:
                         lines.append(f"  • 🌅 All day - {event.summary}")
                     else:
-                        start = event.start_datetime
-                        time_str = start.strftime("%I:%M %p") if start else "TBD"
+                        time_str = format_time_only(event.start_datetime, tz)
                         lines.append(f"  • {time_str} - {event.summary}")
                 if len(events) > 5:
                     lines.append(f"  ... and {len(events) - 5} more")
@@ -585,7 +604,10 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 
             results = await client.get_free_busy(request)
 
-            lines = [f"📊 Free/Busy Status ({start_time.strftime('%b %d %I:%M %p')} - {end_time.strftime('%b %d %I:%M %p')})\n"]
+            # Display times in local timezone
+            start_display = start_time.astimezone(tz).strftime('%b %d %I:%M %p')
+            end_display = end_time.astimezone(tz).strftime('%b %d %I:%M %p')
+            lines = [f"📊 Free/Busy Status ({start_display} - {end_display})\n"]
 
             for result in results:
                 lines.append(f"Calendar: {result.calendar_id}")
@@ -594,8 +616,10 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
                 else:
                     lines.append(f"  ❌ Busy ({len(result.busy)} conflicts):")
                     for slot in result.busy[:5]:
+                        slot_start = slot.start.astimezone(tz) if slot.start.tzinfo else slot.start
+                        slot_end = slot.end.astimezone(tz) if slot.end.tzinfo else slot.end
                         lines.append(
-                            f"    • {slot.start.strftime('%I:%M %p')} - {slot.end.strftime('%I:%M %p')}"
+                            f"    • {slot_start.strftime('%I:%M %p')} - {slot_end.strftime('%I:%M %p')}"
                         )
                 lines.append("")
 
