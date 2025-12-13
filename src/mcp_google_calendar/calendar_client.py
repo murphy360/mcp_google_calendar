@@ -448,14 +448,13 @@ class CalendarClient:
         start_date: Optional[datetime] = None,
         calendar_ids: Optional[list[str]] = None,
     ) -> WeeklySummary:
-        """Get weekly summary starting from specified date."""
+        """Get weekly summary for upcoming 7 days starting from specified date (default: today)."""
         if start_date is None:
+            # Default to today for a forward-looking outlook
             start_date = datetime.now(self._timezone)
-            # Go to start of week (Monday)
-            start_date = start_date - timedelta(days=start_date.weekday())
 
-        start_of_week = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
-        end_of_week = start_of_week + timedelta(days=7)
+        start_of_period = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_of_period = start_of_period + timedelta(days=7)
 
         calendar_ids = calendar_ids or ["primary"]
 
@@ -463,8 +462,8 @@ class CalendarClient:
         for cal_id in calendar_ids:
             events = await self.list_events(
                 calendar_id=cal_id,
-                time_min=start_of_week,
-                time_max=end_of_week,
+                time_min=start_of_period,
+                time_max=end_of_period,
             )
             all_events.extend(events)
 
@@ -492,8 +491,8 @@ class CalendarClient:
             category_counts[cat] = category_counts.get(cat, 0) + 1
 
         return WeeklySummary(
-            week_start=start_of_week.strftime("%Y-%m-%d"),
-            week_end=(end_of_week - timedelta(days=1)).strftime("%Y-%m-%d"),
+            week_start=start_of_period.strftime("%Y-%m-%d"),
+            week_end=(end_of_period - timedelta(days=1)).strftime("%Y-%m-%d"),
             total_events=len(all_events),
             events_by_day=events_by_day,
             busiest_day=busiest_day,

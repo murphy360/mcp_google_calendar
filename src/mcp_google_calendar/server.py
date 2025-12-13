@@ -245,13 +245,13 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="calendar_weekly_summary",
-            description="Get a summary of the week's events from one or more calendars",
+            description="Get a forward-looking summary of the upcoming 7 days from one or more calendars",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "start_date": {
                         "type": "string",
-                        "description": "Week start date in YYYY-MM-DD format (default: current week)",
+                        "description": "Start date in YYYY-MM-DD format (default: today)",
                     },
                     "calendar_ids": {
                         "type": "array",

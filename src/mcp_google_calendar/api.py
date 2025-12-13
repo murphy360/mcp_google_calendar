@@ -320,18 +320,17 @@ async def get_daily_summary(
 
 @app.get("/summary/weekly", response_model=WeekSummaryResponse)
 async def get_weekly_summary(
-    start_date: Optional[str] = Query(None, description="Start date in YYYY-MM-DD format"),
+    start_date: Optional[str] = Query(None, description="Start date in YYYY-MM-DD format (default: today)"),
     calendar_ids: Optional[str] = Query(None, description="Comma-separated list of calendar IDs (default: all calendars)"),
 ):
-    """Get weekly calendar summary."""
+    """Get weekly calendar summary for the upcoming 7 days."""
     try:
         client = get_client()
         if start_date:
             summary_start = datetime.fromisoformat(start_date)
         else:
-            # Start from Monday of current week
-            today = datetime.now()
-            summary_start = today - timedelta(days=today.weekday())
+            # Default to today for forward-looking outlook
+            summary_start = datetime.now()
 
         # Parse calendar_ids - default to all calendars
         cal_ids = None
