@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Main calendar server - runs the combined REST API + MCP SSE server
   calendar:
